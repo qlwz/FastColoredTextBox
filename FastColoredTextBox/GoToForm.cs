@@ -19,7 +19,7 @@ namespace FastColoredTextBoxNS
 
             this.tbLineNumber.Text = this.SelectedLineNumber.ToString();
 
-            this.label.Text = String.Format("Line number (1 - {0}):", this.TotalLineCount);
+            this.label.Text = String.Format("行数 (1 - {0}):", this.TotalLineCount);
         }
 
         protected override void OnShown(EventArgs e)
