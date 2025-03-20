@@ -2448,6 +2448,11 @@ namespace FastColoredTextBoxNS
             else if (!Selection.IsEmpty && Selection.Start.iLine == Selection.End.iLine)
                 findForm.tbFind.Text = Selection.Text;
 
+            findForm.StartPosition = FormStartPosition.Manual; // 手动设置位置
+            // 计算父窗体的中心坐标
+            int x = this.FindForm().Left + (this.FindForm().Width - findForm.Width) / 2;
+            int y = this.FindForm().Top + (this.FindForm().Height - findForm.Height) / 2;
+            findForm.Location = new Point(x, y);
             findForm.tbFind.SelectAll();
             findForm.Show();
             findForm.Focus();
@@ -2476,6 +2481,11 @@ namespace FastColoredTextBoxNS
             else if (!Selection.IsEmpty && Selection.Start.iLine == Selection.End.iLine)
                 replaceForm.tbFind.Text = Selection.Text;
 
+            replaceForm.StartPosition = FormStartPosition.Manual; // 手动设置位置
+            // 计算父窗体的中心坐标
+            int x = this.FindForm().Left + (this.FindForm().Width - replaceForm.Width) / 2;
+            int y = this.FindForm().Top + (this.FindForm().Height - replaceForm.Height) / 2;
+            replaceForm.Location = new Point(x, y);
             replaceForm.tbFind.SelectAll();
             replaceForm.Show();
             replaceForm.Focus();
