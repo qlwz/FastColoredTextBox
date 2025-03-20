@@ -25,6 +25,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Text;
 using System.Drawing.Design;
 using System.Drawing.Drawing2D;
 using System.IO;
@@ -217,6 +218,20 @@ namespace FastColoredTextBoxNS
             timer2.Tick += timer2_Tick;
             timer3.Tick += timer3_Tick;
             middleClickScrollingTimer.Tick += middleClickScrollingTimer_Tick;
+        }
+
+        internal static bool IsChinese(char c)
+        {
+            bool BoolValue = false;
+            if (Convert.ToInt32(c) < Convert.ToInt32(Convert.ToChar(128)))
+            {
+                BoolValue = false;
+            }
+            else
+            {
+                return BoolValue = true;
+            }
+            return BoolValue;
         }
 
         private char[] autoCompleteBracketsList = { '(', ')', '{', '}', '[', ']', '"', '"', '\'', '\'' };
@@ -510,6 +525,12 @@ namespace FastColoredTextBoxNS
         /// </summary>
         [Browsable(false)]
         public int CharWidth { get; set; }
+
+        /// <summary>
+        /// Width of Chinese char in pixels
+        /// </summary>
+        [Browsable(false)]
+        public int CharCnWidth { get; set; }
 
         /// <summary>
         /// Spaces count for tab
@@ -1536,7 +1557,8 @@ namespace FastColoredTextBoxNS
             //clac size
             SizeF size = GetCharSize(BaseFont, 'M');
             CharWidth = (int) Math.Round(size.Width*1f /*0.85*/) - 1 /*0*/;
-            CharHeight = lineInterval + (int) Math.Round(size.Height*1f /*0.9*/) - 1 /*0*/;
+            CharCnWidth = (int)Math.Round(GetCharSize(BaseFont, '中').Width * 1f /*0.85*/) /*0*/;
+            CharHeight = lineInterval + (int) Math.Round(size.Height*1f /*0.9*/) - 0 /*0*/;  //Changed from "-1" to "-0" to avoid Chinese is too close
             //
             //if (wordWrap)
             //    RecalcWordWrap(0, Lines.Count - 1);
@@ -5042,6 +5064,7 @@ namespace FastColoredTextBoxNS
             int iLine;
 
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;  //To aviod text alias when FCTB in tab control(after changing the tab control)
 
             //draw text
             for (iLine = startLine; iLine < lines.Count; iLine++)
@@ -5396,6 +5419,15 @@ namespace FastColoredTextBoxNS
                     }
         }
 
+        class LnInfo
+        {
+            public int startX;
+            public int y;
+            public int fm;
+            public int to;
+            public StyleIndex styleIndex;
+        }
+
         private void DrawLineChars(Graphics gr, int firstChar, int lastChar, int iLine, int iWordWrapLine, int startX,
                                    int y)
         {
@@ -5419,8 +5451,9 @@ namespace FastColoredTextBoxNS
             {
                 //render by custom styles
                 StyleIndex currentStyleIndex = StyleIndex.None;
-                int iLastFlushedChar = firstChar - 1;
 
+                //Modified for Chinese
+                /*int iLastFlushedChar = firstChar - 1;
                 for (int iChar = firstChar; iChar <= lastChar; iChar++)
                 {
                     StyleIndex style = line[from + iChar].style;
@@ -5434,7 +5467,47 @@ namespace FastColoredTextBoxNS
                     }
                 }
                 FlushRendering(gr, currentStyleIndex, new Point(startX + (iLastFlushedChar + 1)*CharWidth, y),
-                               new Range(this, from + iLastFlushedChar + 1, iLine, from + lastChar + 1, iLine));
+                               new Range(this, from + iLastFlushedChar + 1, iLine, from + lastChar + 1, iLine));*/
+
+                var list = new List<LnInfo>();
+                var fx = startX + HorizontalScroll.Value;
+
+                for (var i = firstChar; i <= lastChar; i++)
+                {
+                    var iChar = line[from + i];
+                    var style = iChar.style;
+
+                    if (i == firstChar)  //When it's the first line, adding one line
+                    {
+                        currentStyleIndex = style;
+                        list.Add(new LnInfo
+                        {
+                            fm = from + i,
+                            to = from + i + 1,
+                            styleIndex = currentStyleIndex,
+                            startX = fx,
+                            y = y
+                        });
+                    }
+                    else if (currentStyleIndex != style)
+                    {
+                        currentStyleIndex = style;
+                        list.Add(new LnInfo
+                        {
+                            fm = from + i,
+                            to = from + i + 1,
+                            styleIndex = currentStyleIndex,
+                            startX = fx,
+                            y = y
+                        });
+                    }
+                    else
+                        list[list.Count - 1].to += 1;
+                    fx += iChar.c > 0xff ? CharCnWidth : CharWidth;
+                }
+
+                foreach (var l in list)
+                    FlushRendering(gr, l.styleIndex, new Point(l.startX, l.y + 1), new Range(this, l.fm, iLine, l.to, iLine));
             }
 
             //draw selection
@@ -5446,8 +5519,21 @@ namespace FastColoredTextBoxNS
                 textRange = Selection.GetIntersectionWith(textRange);
                 if (textRange != null && SelectionStyle != null)
                 {
-                    SelectionStyle.Draw(gr, new Point(startX + (textRange.Start.iChar - from)*CharWidth, 1 + y),
-                                        textRange);
+                    //Modified for Chinese
+                    //SelectionStyle.Draw(gr, new Point(startX + (textRange.Start.iChar - from)*CharWidth, 1 + y),
+                    //                    textRange);
+                    var cnt = 0;
+                    var idx = from;
+                    while (idx < textRange.Start.iChar)
+                    {
+                        if (idx < line.Count)
+                            cnt += line.Text[idx] > 0xff ? CharCnWidth : CharWidth;
+                        else
+                            cnt += CharWidth;
+
+                        idx++;
+                    }
+                    SelectionStyle.Draw(gr, new Point((startX + cnt), 1 + y), textRange);
                 }
             }
         }
@@ -5950,7 +6036,23 @@ namespace FastColoredTextBoxNS
             //
             int start = LineInfos[iLine].GetWordWrapStringStartPosition(iWordWrapLine);
             int finish = LineInfos[iLine].GetWordWrapStringFinishPosition(iWordWrapLine, lines[iLine]);
-            var x = (int) Math.Round((float) point.X/CharWidth);
+            //var x = (int) Math.Round((float) point.X/CharWidth);  //Modified for Chinese
+            var x = 0;
+            var nx = 0;
+            var txt = lines[iLine].Text;
+
+            for (int i = 0, sum = txt.Length; i < sum; i++)
+            {
+                if (nx < point.X)
+                {
+                    nx += txt[i] > 0xff ? CharCnWidth : CharWidth;
+                    x++;
+                    continue;
+                }
+                else
+                    break;
+            }
+
             if (iWordWrapLine > 0)
                 x -= LineInfos[iLine].wordWrapIndent;
 
@@ -6301,8 +6403,20 @@ namespace FastColoredTextBoxNS
             //
             int iWordWrapIndex = LineInfos[place.iLine].GetWordWrapStringIndex(place.iChar);
             y += iWordWrapIndex*CharHeight;
-            int x = (place.iChar - LineInfos[place.iLine].GetWordWrapStringStartPosition(iWordWrapIndex))*CharWidth;
-            if(iWordWrapIndex > 0 )
+            //int x = (place.iChar - LineInfos[place.iLine].GetWordWrapStringStartPosition(iWordWrapIndex))*CharWidth;  //Modified for Chinese
+            var startX = LineInfos[place.iLine].GetWordWrapStringStartPosition(iWordWrapIndex);
+            var txt = lines[place.iLine].Text;
+            var x = 0;
+            if (txt.Length > 0)
+            {
+                while (startX < place.iChar)
+                {
+                    x += txt[startX] > 0xFF ? CharCnWidth : CharWidth;
+                    startX++;
+                }
+            }
+
+            if (iWordWrapIndex > 0 )
                 x += LineInfos[place.iLine].wordWrapIndent * CharWidth;
             //
             y = y - VerticalScroll.Value;
@@ -6532,7 +6646,8 @@ namespace FastColoredTextBoxNS
             switch (FindEndOfFoldingBlockStrategy)
             {
                 case FindEndOfFoldingBlockStrategy.Strategy1:
-                    for (i = iStartLine /*+1*/; i < LinesCount; i++)
+                    for (i = iStartLine /*+1*/
+                ; i < LinesCount; i++)
                     {
                         if (lines.LineHasFoldingStartMarker(i))
                             stack.Push(lines[i].FoldingStartMarker);
