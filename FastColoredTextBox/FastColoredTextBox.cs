@@ -2701,6 +2701,24 @@ namespace FastColoredTextBoxNS
             DoCaretVisible();
         }
 
+        public void GoLineHome()
+        {
+            if (lines.Count > 2)
+                Selection.Start = new Place(lines[lines.Count - 2].Count, lines.Count - 2);
+            else
+                Selection.Start = new Place(0, 0);
+
+            DoCaretVisible();
+        }
+
+        public Place GoLinePlace(int index)
+        {
+            if (lines.Count > 0)
+                return new Place(lines[lines.Count - 1].Count > index ? index : lines[lines.Count - 1].Count, lines.Count - 1);
+            else
+                return new Place(0, 0);
+        }
+
         /// <summary>
         /// Move caret to first position
         /// </summary>
